@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<title>Artificial Life</title>
+<style>
+body {
+    background: gray;
+}
+table {
+    text-align: center;
+}
+canvas {
+    background: white;
+}
+</style>
+<h1>Artificial Life</h1>
+<p>Gene elements:</p>
+<table id="elements">
+<tr><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>0</td><td>LIFE</td><td>0</td></tr>
+<tr><td>0</td><td>0</td><td>0</td></tr>
+</table>
+<canvas id="canvas" width="500" height="500">HTML 5 Canvas に対応しているブラウザで閲覧してください。</canvas>
+<script>
+var FPS = 60;
+var LN = 10;
+var FN = 100;
+var FE = 100;
+var FF = 100;
+var E = 150;
+var ELIM = 200;
+var GMAX = 8;
+var W = 100;
+var H = 100;
+var FW = 100;
+var FH = 100;
+var SIZE = 5;
+var TORUS = true;
+
+var context = document.getElementById("canvas").getContext("2d");
+var frame = 0;
+var lives = [];
+var foods = [];
+
+init();
+run();
+
+function init() {
+    for (var i = 0; i < LN; i++)
+        lives.push(new Life());
+    for (var i = 0; i < FN; i++)
+        foods.push(new Food());
+}
+
+function Food() {
+    this.x = Math.floor(Math.random() * FW);
+    this.y = Math.floor(Math.random() * FH);
+}
+
+function Life() {
+    this.x = Math.floor(Math.random() * W);
+    this.y = Math.floor(Math.random() * H);
+    this.dir = Math.floor(Math.random() * 8);
+    this.energy = E;
+    this.gene = "";
+
+    for (var i = 0; i < 8; i++) {
+        var n = Math.floor(Math.random() * GMAX);
+        this.gene += Array(n + 1).join(i);
+    }
+
+    this.move = function() {
+        var e = this.getElement();
+        this.dir = (this.dir + (e | 0)) % 8;
+        var dir = this.getDirection(this.dir);
+        this.changePosition(dir[0], dir[1]);
+        this.eat();
+        this.energy--;
+    }
+
+    this.eat = function() {
+        for (var i = foods.length - 1; i >= 0; i--) {
+            if (foods[i].x == this.x && foods[i].y == this.y) {
+                this.energy += FE;
+                foods.splice(i, 1);
+            }
+        }
+        if (this.energy >= ELIM) this.division();
+    }
+
+    this.getElement = function() {
+        var index = Math.floor(Math.random() * this.gene.length);
+        return this.gene.charAt(index);
+    }
+
+    this.getDirection = function(e) {
+        switch (e) {
+            case 0: return [ 0, -1];
+            case 1: return [ 1, -1];
+            case 2: return [ 1,  0];
+            case 3: return [ 1,  1];
+            case 4: return [ 0,  1];
+            case 5: return [-1,  1];
+            case 6: return [-1,  0];
+            case 7: return [-1, -1];
+        }
+    }
+
+    this.changePosition = function(x, y) {
+        this.x += x;
+        this.y += y;
+
+        if (this.x < 0) this.x = TORUS ? W - 1 : 0;
+        if (this.y < 0) this.y = TORUS ? H - 1 : 0;
+        if (this.x >= W) this.x = TORUS ? 0 : W - 1;
+        if (this.y >= H) this.y = TORUS ? 0 : H - 1;
+    }
+
+    this.division = function() {
+        var life = new Life();
+
+        this.energy = Math.floor(this.energy / 2);
+        var index = Math.floor(Math.random() * this.gene.length);
+        this.gene = this.gene.slice(0, index) + this.gene.slice(index + 1);
+
+        life.x = this.x;
+        life.y = this.y;
+        life.gene = this.gene;
+        life.energy = this.energy
+
+        this.gene += this.getElement();
+        life.gene += this.getElement();
+
+        lives.push(life);
+    }
+}
+
+function run() {
+    requestAnimationFrame(animate);
+}
+
+function animate(time) {
+    frame++;
+    if (frame % (60 / FPS) == 0) {
+        draw();
+        simulate();
+    }
+    requestAnimationFrame(animate);
+}
+
+
+function draw() {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    for (var i = 0; i < foods.length; i++) {
+        context.fillStyle = "red";
+        context.fillRect(foods[i].x * SIZE, foods[i].y * SIZE, SIZE, SIZE);
+    }
+    for (var i = 0; i < lives.length; i++) {
+        context.fillStyle = "green";
+        context.fillRect(lives[i].x * SIZE, lives[i].y * SIZE, SIZE, SIZE);
+    }
+}
+
+function simulate() {
+    for (var i = lives.length - 1; i >= 0; i--) {
+        lives[i].move();
+        if (lives[i].energy == 0) lives.splice(i, 1);
+    }
+    if (frame % (60 / FPS * FF) == 0) {
+        feed();
+        count();
+    }
+}
+
+function feed() {
+    for (var i = 0; i < FN; i++)
+        foods.push(new Food());
+}
+
+function count() {
+    var table = document.getElementById("elements");
+    var es = [0, 0, 0, 0, 0, 0, 0, 0];
+    for (var i = 0; i < lives.length; i++) {
+        var gene = lives[i].gene.split('');
+        for (var j = 0; j < gene.length; j++) {
+            es[gene[j] || 0]++;
+        }
+    }
+    table.rows[0].cells[0].textContent = es[7];
+    table.rows[0].cells[1].textContent = es[0];
+    table.rows[0].cells[2].textContent = es[1];
+    table.rows[1].cells[0].textContent = es[2];
+    table.rows[1].cells[2].textContent = es[3];
+    table.rows[2].cells[0].textContent = es[4];
+    table.rows[2].cells[1].textContent = es[5];
+    table.rows[2].cells[2].textContent = es[6];
+}
+</script>
